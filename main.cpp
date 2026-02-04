@@ -1,32 +1,128 @@
-using namespace std;
 #include <iostream>
 #include <string>
 #include <vector>
 #include <nlohmann/json.hpp>
 #include <fstream> 
+#include <set>
+
+using namespace std;
 using json = nlohmann::json;
 
-vector<string> followers() {
-	fstream file("followers.json");
-	json data = json::parse(file);
+// --- DATA EXTRACTION LOGIC ---
 
-	vector<string> followers_list;
-	for (const auto& follower : data["followers"]) {
-		followers_list.push_back(follower.get<string>());
-	}
-	return followers_list;
+vector<string> parseJsonFile(string filePath, bool isFollowers) {
+    vector<string> usernames;
+    try {
+        ifstream file(filePath);
+        if (!file.is_open()) return usernames;
+
+        json data = json::parse(file);
+
+        if (isFollowers) {
+            // Logic for followers_1.json
+            for (auto& item : data) {
+                if (item.contains("string_list_data") && !item["string_list_data"].empty()) {
+                    usernames.push_back(item["string_list_data"][0]["value"]);
+                }
+            }
+        }
+        else {
+            // Logic for following.json
+            auto& followingList = data["relationships_following"];
+            for (auto& item : followingList) {
+                usernames.push_back(item["title"]);
+            }
+        }
+    }
+    catch (json::parse_error& e) {
+        cout << "[ERROR] JSON Parse Error: " << e.what() << endl;
+    }
+    return usernames;
 }
 
-void add_followers(vector<string>& followers_list, const string& username) {
-	followers_list.push_back(username);
+// --- PATH & INPUT UTILITIES ---
+
+string cleanPath(string path) {
+    // Remove quotes often added by Windows drag-and-drop
+    if (!path.empty() && path.front() == '"' && path.back() == '"') {
+        path = path.substr(1, path.length() - 2);
+    }
+    return path;
 }
 
+string getFileName(string path) {
+    size_t lastSlash = path.find_last_of("\\/");
+    return (lastSlash == string::npos) ? path : path.substr(lastSlash + 1);
+}
+
+set<string> acquireDataSet(string targetName, bool isFollowers) {
+    string path;
+    while (true) {
+        cout << "Drag and drop [" << targetName << "] here and press Enter: ";
+        getline(cin, path);
+        path = cleanPath(path);
+
+        if (getFileName(path) == targetName) {
+            vector<string> results = parseJsonFile(path, isFollowers);
+            if (!results.empty()) {
+                cout << ">> Found " << results.size() << " users.\n" << endl;
+                return set<string>(results.begin(), results.end());
+            }
+            cout << "[ERROR] File was empty or incorrectly formatted." << endl;
+        }
+        else {
+            cout << "[ERROR] Wrong file. Expected: " << targetName << " | Got: " << getFileName(path) << endl;
+        }
+    }
+}
+
+// --- MAIN CONTROL FLOW ---
 
 int main() {
-	cout << "Test Follower App Started" << endl;
-	vector<string> followers_list = followers();
-	cout << "Current Followers:" << endl;
-	for (const auto& follower : followers_list) {
-		cout << "- " << follower << endl;
-	}
+    cout << "--- Instagram Follower Analyzer (C++ Edition) ---\n" << endl;
+
+    // 1. Acquire Data (Stored in main's scope)
+    set<string> followerSet = acquireDataSet("followers_1.json", true);
+    set<string> followingSet = acquireDataSet("following.json", false);
+
+    // 2. Interaction Loop
+    while (true) {
+        cout << "----------------------------------------" << endl;
+        cout << "Choose an option:\n1. Show Non-Followers \n2. Show Fans (You don't follow back)\n3. Exit\nEnter choice: ";
+
+        string choice;
+        getline(cin, choice);
+
+        if (choice == "1") {
+            cout << "\n[!] USERS NOT FOLLOWING YOU BACK:" << endl;
+            int count = 0;
+            for (const string& user : followingSet) {
+                if (followerSet.find(user) == followerSet.end()) {
+                    cout << " - " << user << endl;
+                    count++;
+                }
+            }
+            cout << "Total: " << count << endl;
+        }
+        else if (choice == "2") {
+            cout << "\n[!] FANS (PEOPLE YOU DON'T FOLLOW):" << endl;
+            int count = 0;
+            for (const string& user : followerSet) {
+                if (followingSet.find(user) == followingSet.end()) {
+                    cout << " + " << user << endl;
+                    count++;
+                }
+            }
+            cout << "Total: " << count << endl;
+        }
+        else if (choice == "3") {
+            cout << "Exiting..." << endl;
+            break;
+        }
+        else {
+            cout << "[!] Invalid selection. Try again." << endl;
+        }
+    }
+
+    return 0;
 }
