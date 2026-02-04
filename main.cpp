@@ -9,7 +9,6 @@ using namespace std;
 using json = nlohmann::json;
 
 // --- DATA EXTRACTION LOGIC ---
-
 vector<string> parseJsonFile(string filePath, bool isFollowers) {
     vector<string> usernames;
     try {
@@ -55,6 +54,22 @@ string getFileName(string path) {
     return (lastSlash == string::npos) ? path : path.substr(lastSlash + 1);
 }
 
+set<string> user_ignoreList() {
+    vector<string> usernames;
+    string path;
+    string line;
+    cout << "Drag and drop your ignore.txt list here and press Enter: ";
+    getline(cin, path);
+    path = cleanPath(path);
+    ifstream file(path);
+    while (getline(file, line)) {
+        usernames.push_back(line);
+      }
+int size = usernames.size();
+cout << "You have " << size << " people in your ignore list!";
+return set<string>(usernames.begin(), usernames.end());
+}
+
 set<string> acquireDataSet(string targetName, bool isFollowers) {
     string path;
     while (true) {
@@ -84,12 +99,11 @@ int main() {
     // 1. Acquire Data (Stored in main's scope)
     set<string> followerSet = acquireDataSet("followers_1.json", true);
     set<string> followingSet = acquireDataSet("following.json", false);
-
+    set<string> ignroe;
     // 2. Interaction Loop
     while (true) {
         cout << "----------------------------------------" << endl;
-        cout << "Choose an option:\n1. Show Non-Followers \n2. Show Fans (You don't follow back)\n3. Exit\nEnter choice: ";
-
+        cout << "Choose an option:\n1. Show Non-Followers \n2. Show Fans (You don't follow back)\n3. Turn ignore list on\n4. Exit\nEnter choice: ";
         string choice;
         getline(cin, choice);
 
@@ -97,7 +111,7 @@ int main() {
             cout << "\n[!] USERS NOT FOLLOWING YOU BACK:" << endl;
             int count = 0;
             for (const string& user : followingSet) {
-                if (followerSet.find(user) == followerSet.end()) {
+                if (followerSet.find(user) == followerSet.end() && ignroe.find(user) == ignroe.end()) {
                     cout << " - " << user << endl;
                     count++;
                 }
@@ -116,6 +130,9 @@ int main() {
             cout << "Total: " << count << endl;
         }
         else if (choice == "3") {
+            ignroe = user_ignoreList();
+        }
+        else if (choice == "4") {
             cout << "Exiting..." << endl;
             break;
         }
